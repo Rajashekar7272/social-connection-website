@@ -1,0 +1,136 @@
+// This is your Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  // Basic user fields
+  id        String   @id @default(cuid()) // Unique user id
+  email     String   @unique // Unique email address
+  username  String   @unique // Unique username
+  clerkId   String   @unique // Unique Clerk ID (e.g., for authentication)
+  name      String? // Optional full name
+  bio       String? // Optional bio description
+  image     String? // Optional image URL
+  location  String? // Optional location
+  website   String? // Optional website URL
+  createdAt DateTime @default(now()) // Timestamp when the user was created
+  updatedAt DateTime @updatedAt // Timestamp automatically updated on changes
+
+  // Relations
+  posts    Post[] // Posts authored by the user
+  comments Comment[] // Comments made by the user
+  likes    Like[] // Likes made by the user
+
+  // Followers: users who follow this user.
+  // These are the Follow records where this user is being followed.
+  followers Follow[] @relation("following")
+
+  // Following: users this user is following.
+  // These are the Follow records where this user is the follower.
+  following Follow[] @relation("follower")
+
+  // Notifications
+  // Notifications received by the user
+  notifications        Notification[] @relation("userNotifications")
+  // Notifications created by the user (e.g., actions that trigger notifications)
+  notificationsCreated Notification[] @relation("notificationCreator")
+}
+
+model Post {
+  // Basic post fields
+  id        String   @id @default(cuid()) // Unique post id
+  authorId  String // Id of the user who authored the post
+  content   String? // Optional post content
+  image     String? // Optional image URL associated with the post
+  createdAt DateTime @default(now()) // Timestamp when the post was created
+  updatedAt DateTime @updatedAt // Timestamp automatically updated on changes
+
+  // Relations
+  // The author of the post
+  author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments      Comment[] // Comments on the post
+  likes         Like[] // Likes on the post
+  notifications Notification[] // Notifications related to the post
+}
+
+model Comment {
+  // Basic comment fields
+  id        String   @id @default(cuid()) // Unique comment id
+  content   String // Comment content (required)
+  authorId  String // Id of the user who made the comment
+  postId    String // Id of the post the comment belongs to
+  createdAt DateTime @default(now()) // Timestamp when the comment was created
+
+  // Relations
+  // The post this comment is associated with
+  post         Post           @relation(fields: [postId], references: [id])
+  // The author of the comment
+  author       User           @relation(fields: [authorId], references: [id])
+  Notification Notification[]
+
+  @@index([authorId, postId])
+}
+
+model Like {
+  // Basic like fields
+  id        String   @id @default(cuid()) // Unique like id
+  postId    String // Id of the liked post
+  userId    String // Id of the user who liked the post
+  createdAt DateTime @default(now()) // Timestamp when the like was made
+
+  // Relations
+  // The post that was liked
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  // The user who liked the post
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+}
+
+model Follow {
+  // Composite key fields for follow relationship
+  followerId  String // Id of the user who follows another user
+  followingId String // Id of the user who is being followed
+  createdAt   DateTime @default(now()) // Timestamp when the follow was created
+
+  // Relations
+  // The user who is following (i.e., the follower)
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  // The user who is being followed
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId]) // Composite primary key to prevent duplicate follows
+  @@index([followerId, followingId])
+}
+
+model Notification {
+  // Basic notification fields
+  id        String   @id @default(cuid()) // Unique notification id
+  type      String // Notification type (e.g., "like", "comment", "follow", etc.)
+  userId    String // Id of the user who receives the notification
+  postId    String? // Optional: id of the post related to the notification
+  creatorId String // Id of the user who triggered the notification
+  commentId String? // Optional: id of the comment related to the notification
+  read      Boolean  @default(false) // Whether the notification has been read
+  createdAt DateTime @default(now()) // Timestamp when the notification was created
+
+  // Relations
+  // The user who receives the notification
+  user    User     @relation("userNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  // The user who triggered/created the notification
+  creator User     @relation("notificationCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  // The post associated with the notification (if applicable)
+  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  // The comment associated with the notification (if applicable)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
